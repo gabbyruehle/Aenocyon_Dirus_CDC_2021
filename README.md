@@ -1,3 +1,6 @@
+Aenocyon Dirus used both media datasets for data analysis. The 763K IOS Apps dataset was used to provide insight into how the number of apps and price of apps has changed over time. This dataset provided insights for our analysis of the Worldwide Mobile App User Behavior Dataset. We used the Worldwide Mobile App User Behavior Dataset for our main analysis.
+
+
 # 2021 CDC Project Submission Template
 
 Welcome to the datathon/hackathon portion of the Carolina Data Challenge!
@@ -39,17 +42,5 @@ You can see more info on what you need to submit here. In summary, both your rep
 
 More details and instructions on submissions [here](https://github.com/Carolina-Data-Challenge/project-template-21/tree/main/submission).
 
----
 
-If you have any questions during the, either technical or logistical, be sure to reach out to a mentor and/or a director for assistance!
-
----
-
-If you are unfamiliar with Git and/or GitHub, we highly recommend that you utilize the following resources:
- 
- | Name | Description |
- |------|-------------|
- | [GitHub Desktop App](https://desktop.github.com/) | The GitHub desktop app makes it extremely easy to interact with repositories and visualize the changes you are making.
- | [Markdown Cheat Sheet](https://guides.github.com/pdfs/markdown-cheatsheet-online.pdf) | This markdown cheat sheet will help you style and structure your readme file if you feel inclined to do so.
- | [Git Fundamentals](https://rogerdudler.github.io/git-guide/) | This brief but informative guide will get you up and running with everything you need to know for your project submission in GitHub.
  
