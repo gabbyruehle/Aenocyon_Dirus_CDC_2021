@@ -11,6 +11,11 @@ train <- read_csv("~/CDC2021/train.csv",
     col_types = cols(X1 = col_skip()))
 test <- read_csv("~/CDC2021/test.csv", 
     col_types = cols(X1 = col_skip()))
+
+train$Q20 <- as.factor(train$Q20)
+train$Q23 <- as.factor(train$Q23)
+test$Q20 <- as.factor(test$Q20)
+test$Q23 <- as.factor(test$Q23)
 ```
 
 ```{r}
@@ -32,6 +37,7 @@ test$spent_ord2[test$tot_spent_usd > 5] <- "5+"
 
 #look at distribution of counts of the new response variable
 table(train$spent_ord2)
+table(test$spent_ord2)
 
 
 #create logical vector and change the ith point in vector to T/F depending on if the ith column of the dataset has a significant chi-squared association with the ordinal response variable
@@ -39,14 +45,14 @@ true_or_false <- NA
 for (i in 1:89) {
   #skip column 82 which is a continuous variable and will not work in this test
   if (i != 82) {
-    test <- chisq.test(table(as.factor(train[[i]]), as.factor(train[[94]])), simulate.p.value = TRUE)
-    true_or_false[i] <- test$p.value < .006   
+    ctest <- chisq.test(table(as.factor(train[[i]]), as.factor(train[[94]])), simulate.p.value = TRUE)
+    true_or_false[i] <- ctest$p.value < .006   
     #p-value of .006 choosen based on BIC and length of dataset n = 2268
-    if(test$p.value < .006) {
+    if(ctest$p.value < .006) {
       #display name of significant variable and the result of the test
       print(names(train)[i])
       print(i)
-      print(test)
+      print(ctest)
     }
   }
 }
@@ -309,7 +315,7 @@ m_model <- clogit.model$call
   invisible(result.matrix)
 ```
 
-# Variable that fail brant test: Q11_1, Q15_9
+# Variable that fail brant test: Q11_1, Q15_9, Q11_2
 #brant test shows that these variables should not have the same slope estimate for each category of the indicated variables
 #need to fit partial proportional odds model to account for these different slopes
 
@@ -320,13 +326,13 @@ train_significant_vars$spent_ord2 <- factor(train_significant_vars$spent_ord2, l
 
 #create partial proprotional odds models with all significant variables from chi-square tests and make variables that were significant in brant test have their own slope values for each category within that variable
 library(VGAM)
-plogit.model <- vglm(factor(spent_ord2) ~ Q5 + Q6 + Q7_4 + Q8_1 + Q8_3 + Q8_4 + Q8_7 + Q8_8 + Q9_5 + 
-                       Q10_4 + Q10_7 + Q10_10 + Q10_11+ Q11_1 + Q11_3 + Q11_11 + Q11_12 + Q11_7 + 
-                       Q11_8 + Q11_9 + Q15_2 + Q15_4 + Q15_5 + Q15_6 + Q15_7 + Q15_8 + Q15_9 + Q15_10 + 
-                       Q15_11 + Q15_12 + Q15_14 + Q15_15 + Q15_16 + Q15_19 + Q15_21 + Q15_23 + Q18 + 
+plogit.model <- vglm(factor(spent_ord2) ~ Q5 + Q6 + Q7_4 + Q8_1 + Q8_3 + Q8_4 + Q8_7 + Q8_8 + 
+                       Q10_4 + Q10_7 + Q10_10 + Q10_11+ Q11_1 + Q11_2 + Q11_3 + Q11_11 + Q11_12 + Q11_7 + 
+                       Q11_8 + Q11_9 + Q15_2 + Q15_4 + Q15_5 + Q15_6 + Q15_7 + Q15_8 + Q15_9 + 
+                       Q15_10 + Q15_11 + Q15_12 + Q15_14 + Q15_15 + Q15_16 + Q15_21 + Q15_23  + 
                        Q19 + Q20 + Q23 + Q28, 
     data = train_significant_vars, 
-    family = cumulative(parallel = F ~ Q11_1 + Q15_9)) #parallel = FALSE for list of variables
+    family = cumulative(parallel = F ~ Q11_1 + Q11_2 + Q15_9)) #parallel = FALSE for list of variables
 summary(plogit.model) 
 ```
 ```{r}
@@ -392,8 +398,9 @@ back2 <- step4vglm(plogit.model, direction = "backward", k = 2)
 #stepwise selection with AIC as evaluating criteria and lower model is the results of the backwards elimination with the p-value criteria
 step <- step4vglm(plogit.model, scope = list(lower = back, upper = plogit.model), direction = "both", k = 2)
 ```
-#backward by pvalue: factor(spent_ord2) ~ Q11_1 + Q15_2 + Q15_6 + Q15_15 + Q23
-#backward by AIC/step: factor(spent_ord2) ~ Q6 + Q8_4 + Q8_7 + Q10_7 + Q11_1 + Q11_3 + Q11_11 + Q11_9 + Q15_2 + Q15_6 + Q15_8 + Q15_9 + Q15_15 + Q15_16 + Q15_23 + Q20 + Q23 + Q28
+#backward by pvalue: factor(spent_ord2) ~ Q11_1 + Q15_2 + Q15_6 + Q15_15
+#backward by AIC/step: factor(spent_ord2) ~ Q6 + Q8_7 + Q8_8 + Q11_1 + Q11_2 + Q11_3 + Q11_11 + Q11_8 + Q11_9 + Q15_2 + Q15_5 + Q15_6 + Q15_8 + Q15_9 + Q15_15 + Q15_16 + Q15_23 + Q20
+
 
 ```{r}
 #test if the added variables in step model improve the model compared to the back model
@@ -449,7 +456,15 @@ test_significant_vars$number_off <- abs(as.integer(test_significant_vars$spent_o
 #graph the number of observations that are off by 0, 1, 2, 3
 library(ggplot2)
 ggplot(aes(x=number_off), data = test_significant_vars) +
-  geom_bar()
+  geom_bar(fill = '#002845') +
+  theme_minimal() +
+  labs(title = "Notch Graph of Final Model",
+       y = "Count",
+       x = "Number of Categories the Predicted Value is Off")
+
+test_significant_vars %>%
+  dplyr::select(pred_category, spent_ord2) %>%
+  table()
 ```
 
 
@@ -468,5 +483,11 @@ library(pROC)
 multiclass.roc(train_significant_vars$spent_ord2, predict(back, newdata = train_significant_vars, type = "response"))
 multiclass.roc(train_significant_vars$spent_ord2, predict(step, newdata = train_significant_vars, type = "response"))
 ```
+```{r}
+#look at change in odds ratios percents
+100*(exp(cbind(coef(step), confint(step)))-1)
+```
+
+
 
 
