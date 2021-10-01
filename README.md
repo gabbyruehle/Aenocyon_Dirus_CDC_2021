@@ -1,5 +1,5 @@
 # Aenocyon Dirus 2021 CDC Project Submission Template
-**Analysis by: Anatasia Horvat, Daneil Kim, Gabrielle Ruehle, Robery Seybold**
+**Analysis by: Anatasia Horvat, Daneil Kim, Gabrielle Ruehle, Robert Seybold**
 
 Aenocyon Dirus used both media datasets for data analysis. The 763K IOS Apps dataset was used to provide insight into how the number of apps and price of apps has changed over time. This dataset provided insights for our analysis of the Worldwide Mobile App User Behavior Dataset. We used the Worldwide Mobile App User Behavior Dataset for our main analysis.
 
