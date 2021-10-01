@@ -1,8 +1,3 @@
----
-title: "Partial Proportional Odds"
-date: "9/30/2021"
-output: html_document
----
 
 ```{r}
 #load in data
@@ -12,6 +7,9 @@ train <- read_csv("~/CDC2021/train.csv",
 test <- read_csv("~/CDC2021/test.csv", 
     col_types = cols(X1 = col_skip()))
 
+train <- train[train$tot_spent_usd > 0, ]
+test <- test[test$tot_spent_usd > 0, ]
+
 train$Q20 <- as.factor(train$Q20)
 train$Q23 <- as.factor(train$Q23)
 test$Q20 <- as.factor(test$Q20)
@@ -19,28 +17,18 @@ test$Q23 <- as.factor(test$Q23)
 ```
 
 ```{r}
-#look at histogram of response variable and pick out where to bin the continuous variable
-hist(train$tot_spent_usd[train$tot_spent_usd <6])
-
 #bin the continuous variable by 
 train$spent_ord2 <- NA
-train$spent_ord2[train$tot_spent_usd == 0] <- "0"
 train$spent_ord2[train$tot_spent_usd >0 & train$tot_spent_usd < 2] <- "0-2"
 train$spent_ord2[train$tot_spent_usd >= 2 & train$tot_spent_usd<5] <- "2-5"
 train$spent_ord2[train$tot_spent_usd > 5] <- "5+"
 
 test$spent_ord2 <- NA
-test$spent_ord2[test$tot_spent_usd == 0] <- "0"
 test$spent_ord2[test$tot_spent_usd >0 & test$tot_spent_usd < 2] <- "0-2"
 test$spent_ord2[test$tot_spent_usd >= 2 & test$tot_spent_usd<5] <- "2-5"
 test$spent_ord2[test$tot_spent_usd > 5] <- "5+"
 
-#look at distribution of counts of the new response variable
-table(train$spent_ord2)
-table(test$spent_ord2)
 
-
-#create logical vector and change the ith point in vector to T/F depending on if the ith column of the dataset has a significant chi-squared association with the ordinal response variable
 true_or_false <- NA
 for (i in 1:89) {
   #skip column 82 which is a continuous variable and will not work in this test
@@ -59,10 +47,9 @@ for (i in 1:89) {
 
 
 #change response variable to ordered factor variable in both train and test datasets
-train$spent_ord2 <- factor(train$spent_ord2, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
-test$spent_ord2 <- factor(test$spent_ord2, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
+train$spent_ord2 <- factor(train$spent_ord2, levels=c("0-2", "2-5", "5+"), ordered=T)
+test$spent_ord2 <- factor(test$spent_ord2, levels=c("0-2", "2-5", "5+"), ordered=T)
 ```
-
 
 ```{r}
 #set variables we don't need to F and variables we do to T
@@ -83,48 +70,36 @@ clogit.model <- polr(factor(spent_ord2) ~ .,
     data = train_significant_vars) 
 summary(clogit.model) 
 ```
-```{r}
-#get predicted probabilities from full model
-pred_probs <- predict(clogit.model, newdata = test_significant_vars, type = "probs") 
-head(pred_probs)
-```
+
 ```{r}
 #get the predicted category from full model on test dataset
+pred_probs <- predict(clogit.model, newdata = test_significant_vars, type = "probs") 
+head(pred_probs)
+
 
 #safe predicted probs of each category for each observation to test dataset
-test_significant_vars$pred_probs_0 <- pred_probs[,1]
-test_significant_vars$pred_probs_0to2 <- pred_probs[,2]
-test_significant_vars$pred_probs_2to5 <- pred_probs[,3]
-test_significant_vars$pred_probs_morethan5 <- pred_probs[,4]
+test_significant_vars$pred_probs_0to2 <- pred_probs[,1]
+test_significant_vars$pred_probs_2to5 <- pred_probs[,2]
+test_significant_vars$pred_probs_morethan5 <- pred_probs[,3]
 
 #for loops find the category which is greated predicted probability for each observation of dataset
 test_significant_vars$pred_category <- NA
 for (i in 1:nrow(test_significant_vars)) {
-  if(test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_0to2[i] &
-     test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_2to5[i] &
-     test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_morethan5[i]) {
-    test_significant_vars$pred_category[i] <- "0"
-  } 
-  else if(test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_2to5[i] &
+  if(test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_2to5[i] &
      test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_morethan5[i]) {
     test_significant_vars$pred_category[i] <- "0-2"
   } 
-  else if(test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0to2[i] &
+  else if(test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0to2[i] &
      test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_morethan5[i]) {
     test_significant_vars$pred_category[i] <- "2-5"
   }
-  else if(test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_2to5[i] &
+  else if(test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_2to5[i] &
      test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_0to2[i]) {
     test_significant_vars$pred_category[i] <- "5+"
   }
 }
 
-#create predicted category into ordered factor variable with same levels as the response variable
-test_significant_vars$pred_category <- factor(test_significant_vars$pred_category, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
-#test_significant_vars$spent_ord2 <- factor(test_significant_vars$spent_ord2, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
+test_significant_vars$pred_category <- factor(test_significant_vars$pred_category, levels=c("0-2", "2-5", "5+"), ordered=T)
 ```
 
 ```{r}
@@ -314,139 +289,56 @@ m_model <- clogit.model$call
   }
   invisible(result.matrix)
 ```
-
-# Variable that fail brant test: Q11_1, Q15_9, Q11_2
-#brant test shows that these variables should not have the same slope estimate for each category of the indicated variables
-#need to fit partial proportional odds model to account for these different slopes
-
-#Partial Proportional Odds Model
-```{r}
-#make sure response is an ordered factor variable
-train_significant_vars$spent_ord2 <- factor(train_significant_vars$spent_ord2, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
-
-#create partial proprotional odds models with all significant variables from chi-square tests and make variables that were significant in brant test have their own slope values for each category within that variable
-library(VGAM)
-plogit.model <- vglm(factor(spent_ord2) ~ Q5 + Q6 + Q7_4 + Q8_1 + Q8_3 + Q8_4 + Q8_7 + Q8_8 + 
-                       Q10_4 + Q10_7 + Q10_10 + Q10_11+ Q11_1 + Q11_2 + Q11_3 + Q11_11 + Q11_12 + Q11_7 + 
-                       Q11_8 + Q11_9 + Q15_2 + Q15_4 + Q15_5 + Q15_6 + Q15_7 + Q15_8 + Q15_9 + 
-                       Q15_10 + Q15_11 + Q15_12 + Q15_14 + Q15_15 + Q15_16 + Q15_21 + Q15_23  + 
-                       Q19 + Q20 + Q23 + Q28, 
-    data = train_significant_vars, 
-    family = cumulative(parallel = F ~ Q11_1 + Q11_2 + Q15_9)) #parallel = FALSE for list of variables
-summary(plogit.model) 
-```
-```{r}
-#get the predicted category from partial proportional odds model on test dataset
-pred_probs <- predict(plogit.model, newdata = test_significant_vars, type = "response") 
-head(pred_probs)
-
-#safe predicted probs of each category for each observation to test dataset
-test_significant_vars$pred_probs_0 <- pred_probs[,1]
-test_significant_vars$pred_probs_0to2 <- pred_probs[,2]
-test_significant_vars$pred_probs_2to5 <- pred_probs[,3]
-test_significant_vars$pred_probs_morethan5 <- pred_probs[,4]
-
-
-#for loops find the category which is greated predicted probability for each observation of dataset
-test_significant_vars$pred_category <- NA
-for (i in 1:nrow(test_significant_vars)) {
-  if(test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_0to2[i] &
-     test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_2to5[i] &
-     test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_morethan5[i]) {
-    test_significant_vars$pred_category[i] <- "0"
-  } 
-  else if(test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_2to5[i] &
-     test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_morethan5[i]) {
-    test_significant_vars$pred_category[i] <- "0-2"
-  } 
-  else if(test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0to2[i] &
-     test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_morethan5[i]) {
-    test_significant_vars$pred_category[i] <- "2-5"
-  }
-  else if(test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_2to5[i] &
-     test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_0to2[i]) {
-    test_significant_vars$pred_category[i] <- "5+"
-  }
-}
-
-#make predicted category variable have same factos in same order as response variable
-test_significant_vars$pred_category <- factor(test_significant_vars$pred_category, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
-#test_significant_vars$spent_ord2 <- factor(test_significant_vars$spent_ord2, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
-```
-
-```{r}
-#calculate how many levels off the prediction is from the true value
-test_significant_vars$number_off <- abs(as.integer(test_significant_vars$spent_ord2) - as.integer(test_significant_vars$pred_category))
-
-#graph the number of observations that are off by 0, 1, 2, 3
-library(ggplot2)
-ggplot(aes(x=number_off), data = test_significant_vars) +
-  geom_bar()
-
-```
 ```{r}
 #use significance level of .006
 alpha.f = 0.006
 
 #backwards elimination with p-value as evaulating criteria
-back <- step4vglm(plogit.model, direction = "backward", k = qchisq(alpha.f, 1, lower.tail = FALSE))
+back <- step(clogit.model, direction = "backward", k = qchisq(alpha.f, 1, lower.tail = FALSE))
 #backwards elimination with AIC as evaulating criteria
-back2 <- step4vglm(plogit.model, direction = "backward", k = 2)
+back2 <- step(clogit.model, direction = "backward", k = 2)
 #stepwise selection with AIC as evaluating criteria and lower model is the results of the backwards elimination with the p-value criteria
-step <- step4vglm(plogit.model, scope = list(lower = back, upper = plogit.model), direction = "both", k = 2)
+step <- step(clogit.model, scope = list(lower = back, upper = clogit.model), direction = "both", k = 2)
 ```
-#backward by pvalue: factor(spent_ord2) ~ Q11_1 + Q15_2 + Q15_6 + Q15_15
-#backward by AIC/step: factor(spent_ord2) ~ Q6 + Q8_7 + Q8_8 + Q11_1 + Q11_2 + Q11_3 + Q11_11 + Q11_8 + Q11_9 + Q15_2 + Q15_5 + Q15_6 + Q15_8 + Q15_9 + Q15_15 + Q15_16 + Q15_23 + Q20
+#back: factor(spent_ord2) ~ Q7_3 + Q11_1 + Q15_2 + Q15_6 + Q15_8 + Q15_9 + Q15_15 + Q20
 
 
 ```{r}
-#test if the added variables in step model improve the model compared to the back model
-anova(back, step, type = 1, test = "LRT")
+summary(step)
+```
+```{r}
+anova(step, back, test = "Chisq")
 ```
 
 #accuracy/notch graph for step model
 ```{r}
 #get the predicted category from step model on test dataset
-pred_probs <- predict(step, newdata = test_significant_vars, type = "response") 
+pred_probs <- predict(step, newdata = test_significant_vars, type = "probs") 
 head(pred_probs)
 
-#save predicted probs of each category for each observation to test dataset
-test_significant_vars$pred_probs_0 <- pred_probs[,1]
-test_significant_vars$pred_probs_0to2 <- pred_probs[,2]
-test_significant_vars$pred_probs_2to5 <- pred_probs[,3]
-test_significant_vars$pred_probs_morethan5 <- pred_probs[,4]
+#safe predicted probs of each category for each observation to test dataset
+test_significant_vars$pred_probs_0to2 <- pred_probs[,1]
+test_significant_vars$pred_probs_2to5 <- pred_probs[,2]
+test_significant_vars$pred_probs_morethan5 <- pred_probs[,3]
 
 #for loops find the category which is greated predicted probability for each observation of dataset
 test_significant_vars$pred_category <- NA
 for (i in 1:nrow(test_significant_vars)) {
-  if(test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_0to2[i] &
-     test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_2to5[i] &
-     test_significant_vars$pred_probs_0[i] > test_significant_vars$pred_probs_morethan5[i]) {
-    test_significant_vars$pred_category[i] <- "0"
-  } 
-  else if(test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_2to5[i] &
+  if(test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_2to5[i] &
      test_significant_vars$pred_probs_0to2[i] > test_significant_vars$pred_probs_morethan5[i]) {
     test_significant_vars$pred_category[i] <- "0-2"
   } 
-  else if(test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0to2[i] &
+  else if(test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_0to2[i] &
      test_significant_vars$pred_probs_2to5[i] > test_significant_vars$pred_probs_morethan5[i]) {
     test_significant_vars$pred_category[i] <- "2-5"
   }
-  else if(test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_0[i] &
-     test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_2to5[i] &
+  else if(test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_2to5[i] &
      test_significant_vars$pred_probs_morethan5[i] > test_significant_vars$pred_probs_0to2[i]) {
     test_significant_vars$pred_category[i] <- "5+"
   }
 }
 
-#make predicted category variable have same levels and factors as the response variable
-test_significant_vars$pred_category <- factor(test_significant_vars$pred_category, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
-#test_significant_vars$spent_ord2 <- factor(test_significant_vars$spent_ord2, levels=c("0", "0-2", "2-5", "5+"), ordered=T)
+test_significant_vars$pred_category <- factor(test_significant_vars$pred_category, levels=c("0-2", "2-5", "5+"), ordered=T)
 ```
 
 ```{r}
@@ -466,27 +358,12 @@ test_significant_vars %>%
   dplyr::select(pred_category, spent_ord2) %>%
   table()
 ```
-
-
-```{r}
-#summary of the back model
-summary(back)
-```
-```{r}
-#summary of the step model
-summary(step)
-```
-
-```{r}
-#check different models' c-statistic from area under ROC curve
-library(pROC)
-multiclass.roc(train_significant_vars$spent_ord2, predict(back, newdata = train_significant_vars, type = "response"))
-multiclass.roc(train_significant_vars$spent_ord2, predict(step, newdata = train_significant_vars, type = "response"))
-```
 ```{r}
 #look at change in odds ratios percents
 100*(exp(cbind(coef(step), confint(step)))-1)
 ```
+
+
 
 
 
