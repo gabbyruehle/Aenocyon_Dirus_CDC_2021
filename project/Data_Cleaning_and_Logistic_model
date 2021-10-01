@@ -1,0 +1,358 @@
+
+#Libraries----
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(VGAM)
+library(mgcv)
+library(DescTools)
+library(vcdExtra)
+library(gmodels)
+library(Hmisc)
+library(vcdExtra)
+library(car)
+library(InformationValue)
+library(caret)
+library(brant)
+library(ggplot2)
+library(readxl)
+library(stringr)
+
+
+#Data Import----
+setwd('/Users/robertseybold/Desktop/CDC')
+df_media = read_excel('mobile_data.xlsx')
+
+#Minor Cleaning----
+#Minor variable name cleaning 
+df_media = df_media %>% 
+  mutate(response_status = `Response Status`) %>% 
+  mutate(participant_type = `Participant Type`) %>% 
+  mutate(app_use = `Do you use apps? (based on all app related questions)`)%>% 
+  mutate(app_store = `For those who answered Q4, do they know which app store they are using?`)%>%
+  select(-c(`Response Status`,`Participant Type`,`Do you use apps? (based on all app related questions)`,`For those who answered Q4, do they know which app store they are using?`))
+
+#keeps the labels for later then deletes them from the main table
+df_media_labs = df_media[1,]
+df_media = df_media[-1,]
+
+#only keeping where we have full response (SPLIT FROM MEDIA)
+df_main = df_media %>% filter(response_status == 1)
+
+#Keeps only select variables of interest
+df_main = df_main %>% select(starts_with(c('Q5','Q6','Q7','Q8','Q9','Q10','Q11','Q12',"Q15",'Q16','Q17','Q18','Q19','Q20','Q22','Q23','Q26','Q28'), ignore.case = T),ID)
+
+
+#Cleaning house hold currency
+#Used later for establishing currency spent
+df_main$currency_household <- NA
+df_main$currency_household[df_main$Q28 == 1] <- 'AUD'
+df_main$currency_household[df_main$Q28 == 2] <- 'BRL'
+df_main$currency_household[df_main$Q28 == 3] <- 'GBP'
+df_main$currency_household[df_main$Q28 == 4] <- 'CAD'
+df_main$currency_household[df_main$Q28 == 5] <- 'CNY'
+df_main$currency_household[df_main$Q28 == 6] <- 'EUR'
+df_main$currency_household[df_main$Q28 == 7] <- 'INR'
+df_main$currency_household[df_main$Q28 == 8] <- 'JPY'
+df_main$currency_household[df_main$Q28 == 9] <- 'MXN'
+df_main$currency_household[df_main$Q28 == 10] <- 'RUB'
+df_main$currency_household[df_main$Q28 == 11] <- 'KRW'
+df_main$currency_household[df_main$Q28 == 12] <- 'USD'
+
+
+
+# Clean the response variable----
+# filter out all rows that have NA for total amount input question
+df_main_ms <- df_main %>% filter(is.na(Q12.1_1_TEXT) ==F)
+
+# extract the numeric value from Q12.1
+df_main_ms$Q12.1_1_TEXT <- gsub(",",".",df_main_ms$Q12.1_1_TEXT)
+df_main_ms$tot_spent <- as.numeric(str_extract(df_main_ms$Q12.1_1_TEXT, "[0-9]+(.{1}[0-9]{2})?"))
+
+# extract all characters and remove spaces from Q12.1
+df_main_ms$tot_char <- (str_extract(df_main_ms$Q12.1_1_TEXT, "[^0-9]+"))
+df_main_ms$tot_char <- gsub(" ", "", df_main_ms$tot_char)
+df_main_ms$tot_char <- tolower(df_main_ms$tot_char)
+
+#TODO: Look for "i dont spend money"
+# remove all rows where there were no numeric values from Q12.1
+df_main_ms <- df_main_ms %>% filter(is.na(tot_spent) ==F)
+
+#Gabby: Changes typos
+df_main_ms$currency[df_main_ms$tot_char == "sek"] <- 'SEK'
+df_main_ms$currency[df_main_ms$tot_char == "nok"] <- 'NOK'
+df_main_ms$currency[df_main_ms$tot_char == "us"] <- 'USD'
+df_main_ms$currency[df_main_ms$tot_char == "pesoscolombianos"] <- 'COP'
+df_main_ms$currency[df_main_ms$tot_char == "approx."] <- 'USD'
+df_main_ms$currency[df_main_ms$tot_char == "долларовсша"] <- 'USD'
+df_main_ms$currency[df_main_ms$tot_char == "inr"] <- 'INR'
+df_main_ms$currency[df_main_ms$tot_char == "colones"] <- 'CRC'
+df_main_ms$currency[df_main_ms$tot_char == "рублей"] <- 'RUB'
+df_main_ms$currency[df_main_ms$tot_char == "rub"] <- 'RUB'
+df_main_ms$currency[df_main_ms$tot_char == "uah"] <- 'UAH'
+
+
+# create new column for Currency of the most spent 
+#Identifies through key word
+df_main_ms$currency <- ifelse((df_main_ms$tot_char %in% c('dolar','dolares','dólares','dolaresusa','dollar','dollares','dollars','$','u$','u$$','u$s','us$:','usd','usdls','dllrs','dlls','$.','us$','us','долларов','доларов')),'USD',"")
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('c$','ca.','ca$','cad','cad$','canadian','canadiandollar','canadiandollars','cdn','cdn$')] = 'CAD'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('euro','euros','eur','euru','€','€/mois')] = 'EUR'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('yen','円','円？','jpy','￥','エン','onetime￥')] = 'JPY'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('pounds','gbp','£')] = 'GBP'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('mx','mx$','mxn','mxn$','mxp','pesos','pesosm.n.','pesosmexicanos','pesosmn','pesosmx','pesosmxn')] = 'MXN'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('$a','$au','a$','au$','aud','aud$','aus$','caustralian')] = 'AUD'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('₩','￦','won','원','월','원정도')] = 'KRW'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('rmb','ｒｍｂ','rmb-','rrmb','人民币','元','元人民币','元人民币以下','大概','小说','美元')] = 'RMB'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('aroundrupees','rs','rs.','rupee','rupees','rupess','ruppee')] = 'INR'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('r$','reais','real','rear$')] = 'BRL'
+
+df_main_ms$currency[df_main_ms$tot_char %in% c('руб','руб.','рублей','рубл','рублезапериод','рубли','рублейзаодноприложение')] = 'RUB'
+
+
+#Currency flip for NA
+df_main_ms$currency[df_main_ms$currency == "" & !is.na(df_main_ms$currency_household)] <- df_main_ms$currency_household[df_main_ms$currency == "" & !is.na(df_main_ms$currency_household)]
+
+#Changes the 99 Pound to pence
+df_main_ms %>% filter(ID =='307') %>% select(ID,tot_spent,tot_char,currency)
+df_main_ms$tot_spent[df_main_ms$ID == '307'] = .99
+
+#converting to USD for ALL
+#create tot_spent_usd column for the total spent converted to usd
+df_main_ms$tot_spent_usd <- NA
+
+#convert tot_spent based on currency indicated
+df_main_ms$tot_spent_usd[df_main_ms$currency == "USD"] <- df_main_ms$tot_spent[df_main_ms$currency == "USD"]
+df_main_ms$tot_spent_usd[df_main_ms$currency == "AUD"] <- df_main_ms$tot_spent[df_main_ms$currency == "AUD"]*0.72
+df_main_ms$tot_spent_usd[df_main_ms$currency == "BRL"] <- df_main_ms$tot_spent[df_main_ms$currency == "BRL"]*0.18
+df_main_ms$tot_spent_usd[df_main_ms$currency == "GBP"] <- df_main_ms$tot_spent[df_main_ms$currency == "GBP"]*1.35
+df_main_ms$tot_spent_usd[df_main_ms$currency == "CAD"] <- df_main_ms$tot_spent[df_main_ms$currency == "CAD"]*0.79
+df_main_ms$tot_spent_usd[df_main_ms$currency == "EUR"] <- df_main_ms$tot_spent[df_main_ms$currency == "EUR"]*1.17
+df_main_ms$tot_spent_usd[df_main_ms$currency == "INR"] <- df_main_ms$tot_spent[df_main_ms$currency == "INR"]*0.013
+df_main_ms$tot_spent_usd[df_main_ms$currency == "JPY"] <- df_main_ms$tot_spent[df_main_ms$currency == "JPY"]*0.0090
+df_main_ms$tot_spent_usd[df_main_ms$currency == "MXN"] <- df_main_ms$tot_spent[df_main_ms$currency == "MXN"]*0.049
+df_main_ms$tot_spent_usd[df_main_ms$currency == "RUB"] <- df_main_ms$tot_spent[df_main_ms$currency == "RUB"]*0.014
+df_main_ms$tot_spent_usd[df_main_ms$currency == "KRW"] <- df_main_ms$tot_spent[df_main_ms$currency == "KRW"]*0.00084
+df_main_ms$tot_spent_usd[df_main_ms$currency == "SEK"] <- df_main_ms$tot_spent[df_main_ms$currency == "SEK"]*0.11
+df_main_ms$tot_spent_usd[df_main_ms$currency == "NOK"] <- df_main_ms$tot_spent[df_main_ms$currency == "NOK"]*0.12
+df_main_ms$tot_spent_usd[df_main_ms$currency == "COP"] <- df_main_ms$tot_spent[df_main_ms$currency == "COP"]*0.00026
+df_main_ms$tot_spent_usd[df_main_ms$currency == "CRC"] <- df_main_ms$tot_spent[df_main_ms$currency == "CRC"]*0.0016
+df_main_ms$tot_spent_usd[df_main_ms$currency == "UAH"] <- df_main_ms$tot_spent[df_main_ms$currency == "UAH"]*0.038
+df_main_ms$tot_spent_usd[df_main_ms$currency == "RMB"] <- df_main_ms$tot_spent[df_main_ms$currency == "RMB"]*0.15
+df_main_ms$tot_spent_usd[df_main_ms$currency == "CNY"] <- df_main_ms$tot_spent[df_main_ms$currency == "CNY"]*0.15
+#Describe the total spent
+describe(df_main_ms$tot_spent_usd)
+
+#Final Fixes
+df_main_ms$Q17[df_main_ms$Q17 == 18.5] = 18
+df_main_ms[ , "Q17"] <- sapply(df_main_ms[, "Q17"], as.numeric)
+
+df_main_ms$Q5 <- factor(df_main_ms$Q5, levels = c('1','2','3','4','5','6','7','8','9'),ordered=TRUE)
+df_main_ms$Q6 <- factor(df_main_ms$Q6, levels = c('1','2','3','4','5','6'),ordered=TRUE)
+
+#Binning to binary
+df_main_ms = df_main_ms %>% rowwise() %>% mutate(spent_mon = ifelse(tot_spent_usd != 0,1,0))
+
+#Binning to ordinal
+df_main_ms$spent_ord = NA
+df_main_ms$spent_ord[train$tot_spent_usd == 0] <- "0"
+df_main_ms$spent_ord[train$tot_spent_usd > 0 & train$tot_spent_usd < 1] <- "<1"
+df_main_ms$spent_ord[train$tot_spent_usd >= 1 & train$tot_spent_usd < 5] <- "<5"
+df_main_ms$spent_ord[train$tot_spent_usd >= 5] <- "5+"
+
+#Train/Test separation ----
+#separates into train and test (Used 80/20 due to data size) 
+set.seed(1234)
+sample_size = floor(0.8*nrow(df_main_ms))
+
+# randomly split data into training and test
+picked = sample(seq_len(nrow(df_main_ms)),size = sample_size)
+train = df_main_ms[picked,]
+test = df_main_ms[-picked,]
+
+#Checking Assumptions and relationship for logistic regression----
+#Calculate the critical P-Value to use based on sample size
+1 - pchisq(log(nrow(train)), df = 1)
+#Alpha of 0.006
+alpha = 0.006
+
+#establishes the binary, continuous variables, 
+binary = colnames(select(train,starts_with(c('Q7','Q8','Q9','Q10','Q11','Q15'))))
+continuous = c('Q17')
+ordinal = c('Q5','Q6','Q23')
+nominal = c('Q18','Q19','Q22','Q26')
+
+# Calculate p-values
+binary_p <- c()
+ordinal_p <- c()
+nominal_p <- c()
+continuous_p <- c()
+
+# Get p-values for binary variables by using Mantel-Haenszel Test
+for(i in binary){
+  test <- CMHtest(table(train[[i]], train[["spent_mon"]]))
+  p <- as.numeric(test$table[1,3])
+  binary_p <- c(binary_p, p) 
+}
+
+#Creates data frame to put all information together
+binary_sum <- as.data.frame(cbind(binary, binary_p, 
+                                  rep("Binary", length(binary))))
+
+binary_sum <- binary_sum %>%
+  mutate(binary_p = as.numeric(binary_p))
+
+colnames(binary_sum) <- c("varname", "p_value", "vartype")
+
+#filters only significant based on alpha
+sig_binary = binary_sum %>% filter(p_value <= alpha)
+
+for(i in ordinal){
+  test <- CMHtest(table(train[[i]], train[["spent_mon"]]))
+  p <- as.numeric(test$table[1,3])
+  ordinal_p <- c(ordinal_p, p)
+}
+
+ordinal_sum <- as.data.frame(cbind(ordinal, ordinal_p,
+                                   rep("Ordinal", length(ordinal))))
+
+ordinal_sum <- ordinal_sum %>%
+  mutate(ordinal_p = as.numeric(ordinal_p))
+
+colnames(ordinal_sum) <- c("varname", "p_value", "vartype")
+
+sig_ordinal = ordinal_sum %>% filter(p_value <= alpha)
+
+
+for(i in nominal){
+  test <- chisq.test(table(train[[i]], train[["spent_mon"]]))
+  p <- as.numeric(test$p.value)
+  nominal_p <- c(nominal_p, p)
+}
+
+nominal_sum <- as.data.frame(cbind(nominal, nominal_p,
+                                   rep("Nominal", length(nominal))))
+
+nominal_sum <- nominal_sum %>%
+  mutate(nominal_p = as.numeric(nominal_p))
+
+colnames(nominal_sum) <- c("varname", "p_value", "vartype")
+
+
+for(i in continuous){
+  test <- glm(train$spent_mon ~ train[[i]],
+              family = binomial(link = "logit"))
+  p <- as.numeric(coef(summary(test))[2,4])
+  continuous_p <- c(continuous_p, p)
+}
+
+continuous_sum <- as.data.frame(cbind(continuous, continuous_p,
+                                      rep("Continuous", length(continuous))))
+
+continuous_sum <- continuous_sum %>%
+  mutate(continuous_p = as.numeric(continuous_p))
+
+colnames(continuous_sum) <- c("varname", "p_value", "vartype")
+
+sig_cont = continuous_sum %>% filter(p_value <= alpha)
+
+
+#Model Construction
+full_log = glm(spent_mon ~ Q5 + Q6 + Q23 + Q26 + Q20 + Q7_4 + Q8_1 + Q8_3 + 
+                  Q8_4 + Q8_7 + Q8_8 + Q9_5 + Q9_9 + Q9_11 + Q10_1 + Q10_4 + Q10_7 + Q10_11 + 
+                  Q10_12 + Q10_13 + Q11_1 + Q11_2 + Q11_3 + Q11_11 + Q11_12 + Q11_7 + Q11_8 + 
+                  Q11_9 + Q15_2 + Q15_5 + Q15_6 + Q15_7 + Q15_8 + Q15_10 + Q15_11 + Q15_12 + 
+                  Q15_13 + Q15_16 + Q15_18 + Q15_19 + Q15_20 + Q15_21 + Q15_22, data = train, 
+                family = binomial(link = 'logit'))
+summary(full_log)
+
+#empty model
+lower_log = glm(spent_mon ~ 1, data = train, 
+                family = binomial(link = 'logit'))
+
+
+#backward selection
+back_glm = step(full_log,direction = 'backward',k = qchisq(alpha,1,lower.tail=F))
+summary(back_glm)
+
+
+#Stepwise with AIC criterion
+step_glm = step(lower_log,scope = list(lower = lower_log,upper = full_log),direction = 'both',k=2)
+summary(step_glm)
+
+
+
+#Model comparisons
+#Likelihood Ratio Test
+anova(back_glm,step_glm,test = 'LRT')
+
+#Nagelkerke R^2 (Pseudo R^2)
+PseudoR2(back_glm,which = 'Nagelkerke')
+PseudoR2(step_glm,which = 'Nagelkerke')
+
+comparison_function(step_glm)
+
+#Gets all comparison stats
+comparison_function <- function(model) {
+  
+  #concordance
+  print("Concordance: ")
+  library(InformationValue)
+  print(Concordance(train$spent_mon, predict(model, type = "response")))
+  
+  #coefficient of discrimination
+  train$preds <- predict(model, type = "response")
+  p1 <- train$preds[train$spent_mon == 1]
+  p0 <- train$preds[train$spent_mon == 0]
+  
+  coef_discrim <- mean(p1) - mean(p0)
+  print(paste("Coefficient of Discrimination: ", coef_discrim))
+  
+  library(ggplot2)
+  ggplot(train, aes(preds, fill = factor(spent_mon))) + 
+    geom_density(alpha = 0.7) + 
+    scale_fill_grey() + 
+    labs(x = "Predicted Probability", fill = "Outcome", 
+         title = paste("Coefficient of Discrimination = ", round(coef_discrim, 3), sep = ""))
+  
+  #ROC
+  plotROC(train$spent_mon, train$preds)
+  
+  
+  #KS Stat
+  library(ROCR)
+  pred <- prediction(fitted(model),factor(train$spent_mon))
+  perf <- performance(pred, measure = "tpr" , x.measure = "fpr") 
+  KS <- max(perf@y.values[[1]] - perf@x.values[[1]])
+  cutoffAtKS <- unlist(perf@alpha.values)[which.max(perf@y.values[[1]] - perf@x.values[[1]])] 
+  print("KS")
+  print(c(KS, cutoffAtKS)) 
+  
+  #confusion matrix
+  print("Confusion Matrix:")
+  library(InformationValue)
+  test$preds <- predict(model, newdata = test, type="response")
+  print(InformationValue::confusionMatrix(test$spent_mon, test$preds, threshold = cutoffAtKS))
+  
+  #accuracy
+  print("Accuracy")
+  print((confusionMatrix(test$spent_mon, test$preds, threshold = cutoffAtKS)[1,1] + confusionMatrix(test$spent_mon, test$preds, threshold = cutoffAtKS)[2,2]) / nrow(test))
+  
+  #lift
+  pred <- prediction(predict(model, newdata = test, type="response"),
+                     test$spent_mon)
+  perf <- performance(pred, measure = "lift", x.measure = "rpp") 
+  
+  plot(perf, lwd = 3, colorize = TRUE, colorkey = TRUE, colorize.palette = rev(gray.colors(256)), 
+       main = "Lift Chart for Validation Data") 
+  abline(h = 1, lty = 3)
+}
