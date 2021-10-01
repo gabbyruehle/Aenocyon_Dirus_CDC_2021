@@ -12,4 +12,7 @@ These are the results of a survey of mobile app users conducted by Harvard Unive
 ### 763K IOS Apps ([link](https://www.kaggle.com/cmqub19/763k-ios-app-info))
 This is the result of webscraping data from 763,831 apps the Apple App Store. The Dataset includes 19 columns like the primary genere, the price in USD, the total average rating.
 
+## Datasets in folder
+**train.csv**
 
+**test.csv**
