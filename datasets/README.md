@@ -13,6 +13,10 @@ These are the results of a survey of mobile app users conducted by Harvard Unive
 This is the result of webscraping data from 763,831 apps the Apple App Store. The Dataset includes 19 columns like the primary genere, the price in USD, the total average rating.
 
 ## Datasets in folder
+
+The full datasets used are linked above.
+In the folder are the test and train datasets of the Worldwide Mobile App User Behavior survey data after unnecessary columns were removed, the response variable was cleaned, and incomplete survey observations were removed.
+
 **train.csv**
 
 **test.csv**
