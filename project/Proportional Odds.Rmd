@@ -114,8 +114,6 @@ ggplot(aes(x=number_off), data = test_significant_vars) +
 ```
 
 
-###____
-#Partial Proportional Odds Model
 ```{r}
 #print.testresult function from brant package adjusted to have more digits in p-values
 print.testresult <- function(model,X2,df.v,by.var) {
