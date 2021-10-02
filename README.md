@@ -6,7 +6,7 @@ Aenocyon Dirus used both media datasets for data analysis. The 763K IOS Apps dat
 ## Folders in this repository.
 
 ### /datasets
-This is where you can find more information on your datasets. You may put your datasets in this folder but please keep in mind git/Github's file size limitations. Links to this year's datasets are as follows:
+This folder contains all datasets utiilized for this project. The full media datasets are linked below and in the README file of the dataset folder. The folder also contain the test and train datasets used for model creation were created from the Worldwide Mobile App User Behavior Dataset.
 
 **Media**
 Both datasets from the Media were used in the analysis, but the main analysis was performed on the Worldwide Mobile App Use Behavior survey dataset.
@@ -14,10 +14,12 @@ Both datasets from the Media were used in the analysis, but the main analysis wa
 - https://www.kaggle.com/cmqub19/763k-ios-app-info
 
 ### /project
-Description of code files **here**.
+The project folder contain the 3 code files used for our analysis. The 
 
 ### /submission
-Our project has been submitted for review on DEVPOST. The video presentation of our analysis can be found here (https://www.youtube.com/watch?v=lA_c2W0T7fg&t=2s&ab_channel=DanielKim). Our powerpoint presentation can be found in the submission folder.
+Our project has been submitted for review on DEVPOST. 
+The video presentation of our analysis can be found here (https://www.youtube.com/watch?v=lA_c2W0T7fg&t=2s&ab_channel=DanielKim). 
+Our powerpoint presentation can be found in the submission folder.
 
 
  
