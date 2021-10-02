@@ -14,10 +14,10 @@ Both datasets from the Media were used in the analysis, but the main analysis wa
 - https://www.kaggle.com/cmqub19/763k-ios-app-info
 
 ### /project
-The project folder contain the 3 code files used for our analysis. The 
+The project folder contain the 3 code files used for our analysis. The specifics of each code file can be found on the README in this folder.
 
 ### /submission
-Our project has been submitted for review on DEVPOST. 
+Our project has been submitted for review on DEVPOST (https://devpost.com/software/app-purchasing-behavior). 
 The video presentation of our analysis can be found here (https://www.youtube.com/watch?v=lA_c2W0T7fg&t=2s&ab_channel=DanielKim). 
 Our powerpoint presentation can be found in the submission folder.
 
