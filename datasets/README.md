@@ -1,8 +1,4 @@
-# CDC 2021 Datasets
-
-The datasets for this year are the following:
-
-## Media
+# Media
 
 Aenocyon Dirus used both media datasets for data analysis. The 763K IOS Apps dataset was used to provide insight into how the number of apps and price of apps has changed over time. This dataset provided insights for our analysis of the Worldwide Mobile App User Behavior Dataset. We used the Worldwide Mobile App User Behavior Dataset for our main analysis. Both datasets are linked below.
 
